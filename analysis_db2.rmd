@@ -1,0 +1,349 @@
+---
+title: "Statistical significance"
+author: "Ann Klezovich"
+date: '12.12.2017'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(sqldf)
+library(dplyr)
+library(DBI)
+library(odbc)
+#db <- dbConnect(SQLite(), dbname="some_db")
+#dbWriteTable(conn = db, name = "Respondents",
+#             value="respondents.csv",
+#             row.names = FALSE, header = TRUE)
+#dbWriteTable(conn = db, name = "Results",
+#             value="results.csv",
+#             row.names = FALSE, header = TRUE)
+#dbListTables(db)
+#con <- dbConnect(odbc::odbc(), "Oracle DB")
+```
+
+```{r}
+results <- read.csv("results.csv", encoding = "UTF-8")
+respondents <- read.csv("respondents.csv", encoding = "UTF-8")
+
+respondents[respondents$id == 2,]
+results$rsp[nrow(results)]
+
+#PARAMETERS AS VECTORS
+age <- 1:139
+sex <- 1:139
+birthPlace <- 1:139
+educLevel <- 1:139
+for (i in 1:139){
+  age[i] <- as.integer(as.character(respondents[respondents$id == i,][1,3]))
+  sex[i] <- as.character(respondents[respondents$id == i,][2,3])
+  birthPlace[i] <- as.character(respondents[respondents$id == i,][3,3])
+  educLevel[i] <- as.character(respondents[respondents$id == i,][4,3])
+}
+#parmeters is my cool additional df
+params <- data.frame(as.integer(age),
+                     as.factor(sex),
+                     as.factor(birthPlace),
+                     as.factor(educLevel))
+colnames(params) <- c("age", "sex", "birthPlace", "educLevel")
+head(params)
+summary(params)
+#<- cbind(as.integer(age), sex, birthPlace, educLevel)
+```
+```{r}
+#ANSWERS AS VECTORS
+first <- 1:139
+second <- 1:139
+third <- 1:139
+fourth <- 1:139
+fifth <- 1:139
+sixth <- 1:139
+for (i in 1:139){
+  first[i] <- results[results$rsp == i,][1,4]
+  second[i] <- results[results$rsp == i,][2,4]
+  third[i] <- results[results$rsp == i,][3,4]
+  fourth[i] <- results[results$rsp == i,][4,4]
+  fifth[i] <- results[results$rsp == i,][5,4]
+  sixth[i] <- results[results$rsp == i,][6,4]
+}
+
+answers <- data.frame(as.factor(first),
+                      as.factor(second),
+                      as.factor(third),
+                      as.factor(fourth),
+                      as.factor(fifth),
+                      as.factor(sixth))
+colnames(answers) <- c("Саш_тебе", "Саш_Вам", "Жень_передай", "Жень_передайте", "Валь_ты_получил", "Валь_Вы_получили")
+summary(answers)
+#answer <- cbind(first, second, third, fourth, fifth, sixth)
+```
+```{r}
+answers$age <- params$age
+answers$sex <- params$sex
+answers$birthPlace <- params$birthPlace
+answers$educLevel <- params$educLevel
+nastya_data <- answers
+
+head(nastya_data)
+summary(nastya_data)
+```
+```{r}
+library(ggplot2)
+nastya_data %>%
+  group_by(age) %>%
+  ggplot(aes(age, nastya_data[,2]))+
+  geom_point((aes(color = age)))+
+  ylab("Саш, Вам чай или кофе?")+
+  xlab("Возраст респондентов")
+
+```
+```{r}
+nastya_data %>%
+  group_by(age) %>%
+  ggplot(aes(age, nastya_data[,4]))+
+  geom_point((aes(color = age)))+
+  ylab("Жень, передайте хлеб, пожалуйста")+
+  xlab("Возраст респондентов")
+
+```
+
+```{r}
+#Here we count chi-square
+#Нулевая гипотеза: зависимости между полом и ответами нет
+head(nastya_data)
+
+nastya_data %>%
+  filter(sex=="ж") %>%
+  select(2,4,6)-> fem_df
+nastya_data %>%
+  filter(sex=="м") %>%
+  select(2,4,6)-> mal_df
+
+female_ans <- c(fem_df[,1], fem_df[,2], fem_df[,3])
+male_ans <- c(mal_df[,1], mal_df[,2], mal_df[,3])
+
+yes <- 0
+doubt <- 0
+no <- 0
+for (i in 1:length(female_ans)){
+if (female_ans[i] == 1) {
+  yes <- yes + 1
+} else if(female_ans[i] == 2){
+  doubt <- doubt + 1
+} else {no <- no + 1}
+}
+matr <- c(yes, doubt, no)
+
+yes <- 0
+doubt <- 0
+no <- 0
+for (i in 1:length(male_ans)){
+if (male_ans[i] == 1) {
+  yes <- yes + 1
+} else if(male_ans[i] == 2){
+  doubt <- doubt + 1
+} else {no <- no + 1}
+}
+matr <- c(matr, yes, doubt, no)
+
+sex_answers <- matrix(matr,
+                      nrow = 3,
+                      ncol = 2)
+chisq.test(sex_answers)
+#Никакой зависимости ответов на вопросы 2, 4, 6 от пола респондента НЕТ, нулевая гипотеза верна
+```
+```{r}
+#Нулевая гипотеза: зависимости между местом рождения и ответами нет
+nastya_data %>%
+  filter(birthPlace == "Москва" | birthPlace =="МО") %>%
+  select(2,4,6)-> moscow_df
+nastya_data %>%
+  filter(birthPlace!="Москва") %>%
+  filter(birthPlace!="МО") %>%
+  select(2,4,6)-> other_df
+
+moscow_ans <- c(moscow_df[,1], moscow_df[,2], moscow_df[,3])
+other_ans <- c(other_df[,1], other_df[,2], other_df[,3])
+
+yes <- 0
+doubt <- 0
+no <- 0
+for (i in 1:length(moscow_ans)){
+if (moscow_ans[i] == 1) {
+  yes <- yes + 1
+} else if(moscow_ans[i] == 2){
+  doubt <- doubt + 1
+} else {no <- no + 1}
+}
+matr <- c(yes, doubt, no)
+
+yes <- 0
+doubt <- 0
+no <- 0
+for (i in 1:length(other_ans)){
+if (other_ans[i] == 1) {
+  yes <- yes + 1
+} else if(other_ans[i] == 2){
+  doubt <- doubt + 1
+} else {no <- no + 1}
+}
+matr <- c(matr, yes, doubt, no)
+
+city_answers <- matrix(matr,
+                      nrow = 3,
+                      ncol = 2)
+chisq.test(city_answers)
+#Никакой зависимости ответов на вопросы 2, 4, 6 от места рождения респондента НЕТ, нулевая гипотеза верна
+```
+```{r}
+#Нулевая гипотеза: зависимости между уровнем образования респондента и ответами нет
+
+#Я поделила уровни образования на две группы (грубо говоря учился в институте/не учился в институте), потому что мало репондентов
+nastya_data %>%
+  filter(educLevel == "школьник" | educLevel == "среднее" | educLevel == "среднее_специальное") %>%
+  select(2,4,6)-> school_df
+
+nastya_data %>%
+  filter(educLevel == "высшее" | educLevel == "неоконченное_высшее") %>%
+  select(2,4,6)-> high_df
+
+school_ans <- c(school_df[,1], school_df[,2], school_df[,3])
+high_ans <- c(high_df[,1], high_df[,2], high_df[,3])
+
+yes <- 0
+doubt <- 0
+no <- 0
+for (i in 1:length(school_ans)){
+if (school_ans[i] == 1) {
+  yes <- yes + 1
+} else if(school_ans[i] == 2){
+  doubt <- doubt + 1
+} else {no <- no + 1}
+}
+matr <- c(yes, doubt, no)
+
+yes <- 0
+doubt <- 0
+no <- 0
+for (i in 1:length(high_ans)){
+if (high_ans[i] == 1) {
+  yes <- yes + 1
+} else if(high_ans[i] == 2){
+  doubt <- doubt + 1
+} else {no <- no + 1}
+}
+matr <- c(matr, yes, doubt, no)
+
+education_answers <- matrix(matr,
+                      nrow = 3,
+                      ncol = 2,
+                      dimnames=list(NULL, c("школьник/среднее/среднее_специальное", "(неоконченное)высшее")))
+chisq.test(education_answers)
+#Ответы на вопросы 2,4,6 ЗАВИСЯТ от уровня образования, нулевая гипотеза не верна
+```
+```{r}
+education_answers
+lData <- melt(education_answers)
+lData %>%
+ggplot(aes(x = Var2, y = value, fill = as.factor(Var1)))+
+  geom_bar(stat = "identity", position = "dodge")+
+  labs(title = "Зависимость ответов от уровня образования респондентов",
+       y = "count",
+       x = "level of education",
+       fill = "answers")+
+  theme_bw()
+```
+
+```{r}
+#Нулевая гипотеза: зависимости между возрастной группой и ответами нет
+
+#Я поделила возраст на три группы: age<17 (56 респондентов), 17<=age<33 (45 респондента), age>33 (38 респондентов)
+
+nastya_data %>%
+  filter(age < 17) %>%
+  select(2,4,6)-> young_df
+
+nastya_data %>%
+  filter(age >= 17) %>%
+  filter(age < 33) %>%
+  select(2,4,6)-> middle_df
+
+nastya_data %>%
+  filter(age >= 33) %>%
+  select(2,4,6)-> old_df
+
+young_ans <- c(young_df[,1], young_df[,2], young_df[,3])
+middle_ans <- c(middle_df[,1], middle_df[,2], middle_df[,3])
+old_ans <- c(old_df[,1], old_df[,2], old_df[,3])
+
+yes <- 0
+doubt <- 0
+no <- 0
+for (i in 1:length(young_ans)){
+if (young_ans[i] == 1) {
+  yes <- yes + 1
+} else if(young_ans[i] == 2){
+  doubt <- doubt + 1
+} else {no <- no + 1}
+}
+matr <- c(yes, doubt, no)
+
+yes <- 0
+doubt <- 0
+no <- 0
+for (i in 1:length(middle_ans)){
+if (middle_ans[i] == 1) {
+  yes <- yes + 1
+} else if(middle_ans[i] == 2){
+  doubt <- doubt + 1
+} else {no <- no + 1}
+}
+matr <- c(matr, yes, doubt, no)
+
+yes <- 0
+doubt <- 0
+no <- 0
+for (i in 1:length(old_ans)){
+if (old_ans[i] == 1) {
+  yes <- yes + 1
+} else if(old_ans[i] == 2){
+  doubt <- doubt + 1
+} else {no <- no + 1}
+}
+matr <- c(matr, yes, doubt, no)
+
+age_answers <- matrix(matr,
+                      nrow = 3,
+                      ncol = 3,
+                      dimnames=list(NULL, c("young", "middle-aged", "old")))
+chisq.test(age_answers)
+#Ответы на вопросы 2,4,6 ЗАВИСЯТ от возрастной группы, нулевая гипотеза не верна
+```
+```{r}
+library(reshape2)
+longData <- melt(age_answers)
+longData %>%
+ggplot(aes(x = Var2, y = value, fill = as.factor(Var1)))+
+  geom_bar(stat = "identity", position = "dodge")+
+  labs(title = "Зависимость ответов от возраста респондентов",
+       y = "count",
+       x = "age",
+       fill = "answers")+
+  theme_bw()
+
+?discrete_scale
+```
+```{r}
+age_groups <- t(t(age_answers[3,]))
+education_answers
+
+t <- t.test(rus_est[rus_est[,1] == "young", ]$speech_rate,
+       rus_est[rus_est$language == "estonian", ]$speech_rate)
+
+t.value <- t$statistic
+t.value
+
+```
